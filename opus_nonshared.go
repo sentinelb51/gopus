@@ -14,8 +14,25 @@ package gopus
 // #cgo linux darwin freebsd openbsd LDFLAGS: -lm
 //
 // #cgo CFLAGS: -Iopus-1.5.2 -Iopus-1.5.2/include -Iopus-1.5.2/celt -Iopus-1.5.2/silk -Iopus-1.5.2/silk/float
+// #cgo CFLAGS: -Iopus-1.5.2/dnn
 // #cgo CFLAGS: -DOPUS_BUILD -DHAVE_CONFIG_H -Wno-unused-function
 // #cgo CFLAGS: -DCELT_ENCODER_C -DCELT_DECODER_C
+//
+// /* Deep PLC: libopus 1.5's neural packet-loss concealment, which reconstructs a
+//    lost frame as speech rather than extrapolating the last pitch period. It is
+//    compiled in and switched at *runtime* — opus_decoder.c reads
+//    `complexity >= 5`, and a decoder's complexity is 0 unless it is set — so this
+//    costs nothing until Decoder.SetComplexity asks for it.
+//
+//    DRED and OSCE are deliberately left out. DRED needs the sender to enable it
+//    too, so it buys nothing against a far end that is not also this library, and
+//    the two of them are 10 MB of model data against Deep PLC's 5.
+//
+//    The sources are in dnn.c rather than in the amalgamation below: they are
+//    written to be their own translation units and collide with celt and silk
+//    when they are not — dnn/burg.c has its own static silk_energy_FLP, and
+//    dnn/freq.c its own eband5ms. */
+// #cgo CFLAGS: -DENABLE_DEEP_PLC
 //
 // /* Every source below is included into one translation unit, so celt.h is
 //    parsed exactly once, by whichever file reaches it first. Its custom-mode
@@ -163,6 +180,7 @@ package gopus
 // #include "opus-1.5.2/src/analysis.c"
 // #include "opus-1.5.2/src/mlp.c"
 // #include "opus-1.5.2/src/mlp_data.c"
+//
 // enum {
 //   gopus_ok = OPUS_OK,
 //   gopus_bad_arg = OPUS_BAD_ARG,
@@ -221,6 +239,10 @@ package gopus
 //
 // void gopus_encoder_resetstate(OpusEncoder *encoder) {
 //   opus_encoder_ctl(encoder, OPUS_RESET_STATE);
+// }
+//
+// int gopus_setdecodercomplexity(OpusDecoder *decoder, int complexity) {
+//   return opus_decoder_ctl(decoder, OPUS_SET_COMPLEXITY(complexity));
 // }
 //
 // void gopus_decoder_resetstate(OpusDecoder *decoder) {
@@ -390,6 +412,31 @@ func (d *Decoder) Decode(data []byte, frameSize int, fec bool) ([]int16, error) 
 		return nil, getErr(cRet)
 	}
 	return output[:ret*d.channels], nil
+}
+
+// Decoder complexity levels. Complexity is a decoder-side dial in libopus 1.5
+// and above, and what it buys is loss concealment: below DeepPLC a lost packet
+// is concealed the classic way — the last pitch period extrapolated and faded,
+// which is convincing for one frame and robotic by the third — and at DeepPLC or
+// above a neural model reconstructs it as speech in the talker's own voice.
+//
+// ComplexityOff is libopus's own default, so nothing changes for a caller that
+// never asks. Deep PLC has to be compiled in as well; on a build without it, or
+// on a system libopus older than 1.5, these are accepted and do nothing.
+const (
+	ComplexityOff     = 0
+	ComplexityDeepPLC = 5
+)
+
+// SetComplexity sets how much work the decoder may do, 0-10. The level that
+// matters is ComplexityDeepPLC, at and above which libopus conceals lost packets
+// with its neural model rather than by extrapolation.
+//
+// It is per decoder and takes effect on the next frame, so it can be moved
+// mid-call. The cost is paid only while concealing: a stream losing nothing
+// decodes at exactly the same price either way.
+func (d *Decoder) SetComplexity(complexity int) error {
+	return getErr(C.gopus_setdecodercomplexity(d.cDecoder, C.int(complexity)))
 }
 
 func (d *Decoder) ResetState() {

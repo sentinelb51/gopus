@@ -69,6 +69,10 @@ package gopus
 //   opus_encoder_ctl(encoder, OPUS_RESET_STATE);
 // }
 //
+// int gopus_setdecodercomplexity(OpusDecoder *decoder, int complexity) {
+//   return opus_decoder_ctl(decoder, OPUS_SET_COMPLEXITY(complexity));
+// }
+//
 // void gopus_decoder_resetstate(OpusDecoder *decoder) {
 //   opus_decoder_ctl(decoder, OPUS_RESET_STATE);
 // }
@@ -236,6 +240,31 @@ func (d *Decoder) Decode(data []byte, frameSize int, fec bool) ([]int16, error) 
 		return nil, getErr(cRet)
 	}
 	return output[:ret*d.channels], nil
+}
+
+// Decoder complexity levels. Complexity is a decoder-side dial in libopus 1.5
+// and above, and what it buys is loss concealment: below DeepPLC a lost packet
+// is concealed the classic way — the last pitch period extrapolated and faded,
+// which is convincing for one frame and robotic by the third — and at DeepPLC or
+// above a neural model reconstructs it as speech in the talker's own voice.
+//
+// ComplexityOff is libopus's own default, so nothing changes for a caller that
+// never asks. Deep PLC has to be compiled in as well; on a build without it, or
+// on a system libopus older than 1.5, these are accepted and do nothing.
+const (
+	ComplexityOff     = 0
+	ComplexityDeepPLC = 5
+)
+
+// SetComplexity sets how much work the decoder may do, 0-10. The level that
+// matters is ComplexityDeepPLC, at and above which libopus conceals lost packets
+// with its neural model rather than by extrapolation.
+//
+// It is per decoder and takes effect on the next frame, so it can be moved
+// mid-call. The cost is paid only while concealing: a stream losing nothing
+// decodes at exactly the same price either way.
+func (d *Decoder) SetComplexity(complexity int) error {
+	return getErr(C.gopus_setdecodercomplexity(d.cDecoder, C.int(complexity)))
 }
 
 func (d *Decoder) ResetState() {
