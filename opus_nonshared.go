@@ -178,6 +178,18 @@ package gopus
 //   opus_encoder_ctl(encoder, OPUS_SET_VBR(vbr));
 // }
 //
+// int gopus_setinbandfec(OpusEncoder *encoder, int enabled) {
+//   return opus_encoder_ctl(encoder, OPUS_SET_INBAND_FEC(enabled));
+// }
+//
+// int gopus_setpacketlossperc(OpusEncoder *encoder, int percent) {
+//   return opus_encoder_ctl(encoder, OPUS_SET_PACKET_LOSS_PERC(percent));
+// }
+//
+// int gopus_setdtx(OpusEncoder *encoder, int enabled) {
+//   return opus_encoder_ctl(encoder, OPUS_SET_DTX(enabled));
+// }
+//
 // void gopus_setbitrate(OpusEncoder *encoder, int bitrate) {
 //   opus_encoder_ctl(encoder, OPUS_SET_BITRATE(bitrate));
 // }
@@ -280,6 +292,38 @@ func (e *Encoder) SetApplication(application Application) {
 
 func (e *Encoder) Application() Application {
 	return Application(C.gopus_application(e.cEncoder))
+}
+
+// SetInBandFEC turns on Opus's in-band forward error correction: each packet
+// carries a low-bitrate copy of the one before it, so a single lost packet can be
+// recovered from its successor rather than concealed.
+//
+// It costs bitrate only in proportion to SetPacketLossPerc, so the usual
+// arrangement is to leave this on and tune the loss estimate instead.
+func (e *Encoder) SetInBandFEC(enabled bool) error {
+	return getErr(C.gopus_setinbandfec(e.cEncoder, cbool(enabled)))
+}
+
+// SetPacketLossPerc tells the encoder how much loss to expect, 0-100. It decides
+// how much redundancy in-band FEC actually adds; at 0 the FEC flag does nothing.
+func (e *Encoder) SetPacketLossPerc(percent int) error {
+	return getErr(C.gopus_setpacketlossperc(e.cEncoder, C.int(percent)))
+}
+
+// SetDTX turns on discontinuous transmission: a silent frame goes as a few bytes
+// of comfort noise rather than a full frame, so a gated microphone costs about
+// 5 kbps instead of the full bitrate and the track stays alive.
+func (e *Encoder) SetDTX(enabled bool) error {
+	return getErr(C.gopus_setdtx(e.cEncoder, cbool(enabled)))
+}
+
+// cbool is C's idea of a boolean, which each CTL above takes as an int.
+func cbool(v bool) C.int {
+	if v {
+		return 1
+	}
+
+	return 0
 }
 
 func (e *Encoder) ResetState() {
