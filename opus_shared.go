@@ -1,4 +1,8 @@
-// +build !amd64,!386,cgo
+//go:build cgo && opus_shared
+
+// The system-library build, opt-in through -tags opus_shared. It links whatever
+// pkg-config points at rather than the vendored tree, which is what a
+// distribution packaging this would want.
 
 package gopus
 
@@ -90,6 +94,13 @@ const (
 type Encoder struct {
 	data     []byte
 	cEncoder *C.struct_OpusEncoder
+}
+
+// Version is the libopus build this package is linked against, straight from
+// opus_get_version_string. Worth having where the library is vendored: it is the
+// only way to tell at runtime which copy actually got compiled in.
+func Version() string {
+	return C.GoString(C.opus_get_version_string())
 }
 
 func NewEncoder(sampleRate, channels int, application Application) (*Encoder, error) {
