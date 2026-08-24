@@ -4,8 +4,11 @@
 // compiled from the tree beside this file, so a fresh clone needs no system
 // library and no pkg-config. It used to be limited to amd64 and 386, which sent
 // arm64 — Apple Silicon, and Linux arm64 — down the shared path and made a
-// system libopus a build requirement there. Nothing about the C needs that: the
-// vendored build is pure C with the intrinsics compiled out.
+// system libopus a build requirement there. Nothing about the C needs that.
+//
+// The architecture-specific intrinsics are in simd_amd64.c and simd_arm64.c,
+// which cannot live in the amalgamation below: this file has no GOARCH
+// constraint and they must. What selects them is config.h.
 //
 // Build with -tags opus_shared to link the system library instead.
 
@@ -16,7 +19,7 @@ package gopus
 // #cgo CFLAGS: -Iopus-1.5.2 -Iopus-1.5.2/include -Iopus-1.5.2/celt -Iopus-1.5.2/silk -Iopus-1.5.2/silk/float
 // #cgo CFLAGS: -Iopus-1.5.2/dnn
 // #cgo CFLAGS: -DOPUS_BUILD -DHAVE_CONFIG_H -Wno-unused-function
-// #cgo CFLAGS: -DCELT_ENCODER_C -DCELT_DECODER_C
+// #cgo CFLAGS: -DCELT_ENCODER_C= -DCELT_DECODER_C=
 //
 // /* Deep PLC: libopus 1.5's neural packet-loss concealment, which reconstructs a
 //    lost frame as speech rather than extrapolating the last pitch period. It is
@@ -39,7 +42,11 @@ package gopus
 //    prototypes are gated on CELT_ENCODER_C / CELT_DECODER_C, which upstream
 //    defines at the top of celt_encoder.c and celt_decoder.c and which therefore
 //    arrive too late here. Defining both up front is what lets the amalgamation
-//    see them; the two macros gate nothing else in the tree. */
+//    see them; the two macros gate nothing else in the tree.
+//
+//    The trailing `=` is not a typo. A bare -D defines the macro as 1, which the
+//    source's own empty #define then contradicts and gcc reports; an empty value
+//    matches it exactly and is a benign redefinition. */
 //
 // #include "opus-1.5.2/config.h"
 //
