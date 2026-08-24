@@ -217,14 +217,34 @@ func NewDecoder(sampleRate, channels int) (*Decoder, error) {
 }
 
 func (d *Decoder) Decode(data []byte, frameSize int, fec bool) ([]int16, error) {
+	output := make([]int16, d.channels*frameSize)
+
+	n, err := d.DecodeIn(data, frameSize, output, fec)
+	if err != nil {
+		return nil, err
+	}
+	return output[:n], nil
+}
+
+// DecodeIn decodes into pcm rather than allocating, and reports how many
+// samples it wrote — channels*frameSize for a whole frame. pcm must hold at
+// least that many samples. A nil data conceals a lost packet and fec recovers
+// one from its successor, exactly as with Decode.
+//
+// It exists for callers decoding tens of frames a second per stream, where
+// Decode's per-call allocation is the receive path's dominant garbage.
+func (d *Decoder) DecodeIn(data []byte, frameSize int, pcm []int16, fec bool) (int, error) {
+	if len(pcm) < d.channels*frameSize {
+		return 0, errors.New("gopus: pcm shorter than channels*frameSize")
+	}
+
 	var dataPtr *C.uchar
 	if len(data) > 0 {
 		dataPtr = (*C.uchar)(unsafe.Pointer(&data[0]))
 	}
 	dataLen := C.opus_int32(len(data))
 
-	output := make([]int16, d.channels*frameSize)
-	outputPtr := (*C.opus_int16)(unsafe.Pointer(&output[0]))
+	outputPtr := (*C.opus_int16)(unsafe.Pointer(&pcm[0]))
 
 	var cFec C.int
 	if fec {
@@ -237,9 +257,9 @@ func (d *Decoder) Decode(data []byte, frameSize int, fec bool) ([]int16, error) 
 	ret := int(cRet)
 
 	if ret < 0 {
-		return nil, getErr(cRet)
+		return 0, getErr(cRet)
 	}
-	return output[:ret*d.channels], nil
+	return ret * d.channels, nil
 }
 
 // Decoder complexity levels. Complexity is a decoder-side dial in libopus 1.5
