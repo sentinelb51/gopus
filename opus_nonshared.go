@@ -21,6 +21,22 @@ package gopus
 // #cgo CFLAGS: -DOPUS_BUILD -DHAVE_CONFIG_H -Wno-unused-function
 // #cgo CFLAGS: -DCELT_ENCODER_C= -DCELT_DECODER_C=
 //
+// /* cgo compiles with `-g -O2` and appends whatever is here, so the later -O
+//    wins. Worth 4-8 % of the codec on its own.
+//
+//    What is *not* here, so nobody spends the afternoon again. `-Ofast` does not
+//    compile: celt/arch.h:201 refuses it outright — "Cannot build libopus with
+//    -ffast-math unless FLOAT_APPROX is defined. This could result in crashes on
+//    extreme (e.g. NaN) input". `-fno-math-errno` and `-fno-trapping-math` are
+//    the two halves of -ffast-math that *are* safe here (libopus reads errno
+//    from no math function and arms no FP trap) and are worth another ~6 % of a
+//    concealed frame, but cgo's flag allowlist rejects every `-f` flag outside
+//    its own list, so a library cannot carry them; they need CGO_CFLAGS from
+//    whoever is building. `-flto` passes the allowlist and produces a binary
+//    Windows will not load, and would buy nothing regardless — the amalgamation
+//    below is already one translation unit. */
+// #cgo CFLAGS: -O3
+//
 // /* Deep PLC: libopus 1.5's neural packet-loss concealment, which reconstructs a
 //    lost frame as speech rather than extrapolating the last pitch period. It is
 //    compiled in and switched at *runtime* — opus_decoder.c reads
@@ -460,8 +476,19 @@ const (
 // with its neural model rather than by extrapolation.
 //
 // It is per decoder and takes effect on the next frame, so it can be moved
-// mid-call. The cost is paid only while concealing: a stream losing nothing
-// decodes at exactly the same price either way.
+// mid-call.
+//
+// It is not free on a clean stream, whatever this comment used to say. The
+// model has to be fed on every frame that arrives (celt_decoder.c calls
+// update_plc_state on each one), so a decoder at ComplexityDeepPLC costs about
+// a quarter more per good frame than one at ComplexityOff — 17.6 µs against
+// 14.2 on a 9950X3D, 48 kHz mono. Concealing is where the rest of it goes: one
+// hidden frame is ~227 µs against ~17, thirteen times the price of the
+// extrapolation it replaces. Both figures are with march_amd64.go's AVX2 floor;
+// without it concealment is ~690 µs.
+//
+// So it is worth having and it is worth being a setting, but a client running
+// it for every participant of a large call is spending real time on it.
 func (d *Decoder) SetComplexity(complexity int) error {
 	return getErr(C.gopus_setdecodercomplexity(d.cDecoder, C.int(complexity)))
 }

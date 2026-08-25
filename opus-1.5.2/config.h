@@ -30,10 +30,14 @@
    to pay on a call that was already going to happen.
 
    What may be presumed is what the architecture itself guarantees — SSE and
-   SSE2 on amd64, Neon on arm64 — so this raises no CPU floor and needs no
-   -march. SSE4.1 and AVX2 are deliberately absent: neither is guaranteed, and
-   reaching them means either a -march that drops every machine before 2013 or
-   the runtime dispatch this build exists to avoid.
+   SSE2 on amd64, Neon on arm64 — so nothing in this file raises a CPU floor or
+   needs a -march. libopus's own SSE4.1 and AVX2 sources are absent for a
+   different reason: upstream compiles each with its own -m flag, and cgo has
+   one CFLAGS for a whole package.
+
+   amd64 does raise a floor, but it is a separate decision and lives in
+   march_amd64.go behind a build tag. It is aimed at dnn/vec_avx.h, which reads
+   the compiler's own __AVX2__ and ignores everything here.
 
    The sources these resolve to are compiled by simd_amd64.c and simd_arm64.c,
    whose GOARCH filename suffix is what keeps one architecture's intrinsics out
