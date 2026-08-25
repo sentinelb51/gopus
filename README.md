@@ -2,9 +2,15 @@
 
 gopus is a Go binding for the [Opus](http://www.opus-codec.org/) audio codec.
 
+A fork of Tim Cooper's [layeh.com/gopus](https://github.com/layeh/gopus), which
+vendors Opus 1.1.2 and was last touched in 2021. This one vendors 1.5.2, adds the
+encoder CTLs an interactive client needs (in-band FEC, packet-loss estimate, DTX),
+Deep PLC, `Decoder.DecodeIn`, and per-architecture vector builds. The module path
+is this repository's own, so nothing importing it needs a `replace`.
+
 ## Documentation
 
-- [API Reference](https://godoc.org/layeh.com/gopus)
+- [API Reference](https://pkg.go.dev/github.com/sentinelb51/gopus)
 
 ## Requirements
 
