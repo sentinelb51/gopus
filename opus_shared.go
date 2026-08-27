@@ -120,18 +120,36 @@ func NewEncoder(sampleRate, channels int, application Application) (*Encoder, er
 }
 
 func (e *Encoder) Encode(pcm []int16, frameSize, maxDataBytes int) ([]byte, error) {
-	pcmPtr := (*C.opus_int16)(unsafe.Pointer(&pcm[0]))
-
 	data := make([]byte, maxDataBytes)
+
+	n, err := e.EncodeIn(pcm, frameSize, data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+// EncodeIn encodes into data rather than allocating, and reports how many bytes
+// the packet took. len(data) caps the packet, so data should be as large as the
+// maxDataBytes the caller would have passed to Encode.
+//
+// It exists for the same caller DecodeIn does: fifty frames a second through
+// Encode is fifty allocations a second, on a path that otherwise makes none.
+func (e *Encoder) EncodeIn(pcm []int16, frameSize int, data []byte) (int, error) {
+	if len(data) == 0 {
+		return 0, errors.New("gopus: empty packet buffer")
+	}
+
+	pcmPtr := (*C.opus_int16)(unsafe.Pointer(&pcm[0]))
 	dataPtr := (*C.uchar)(unsafe.Pointer(&data[0]))
 
 	encodedC := C.opus_encode(e.cEncoder, pcmPtr, C.int(frameSize), dataPtr, C.opus_int32(len(data)))
 	encoded := int(encodedC)
 
 	if encoded < 0 {
-		return nil, getErr(C.int(encodedC))
+		return 0, getErr(C.int(encodedC))
 	}
-	return data[0:encoded], nil
+	return encoded, nil
 }
 
 func (e *Encoder) SetVbr(vbr bool) {
