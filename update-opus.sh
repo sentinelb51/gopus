@@ -95,10 +95,21 @@ sources=$(cd "$work/src" && cat celt_sources.mk silk_sources.mk opus_sources.mk 
 	grep -vE '^(celt|silk|dnn)/(x86|arm)/|^silk/fixed/|dred|lossgen' | sort -u)
 arch="celt/x86/pitch_sse.c celt/x86/vq_sse2.c dnn/x86/nnet_sse2.c
 	celt/arm/celt_neon_intr.c celt/arm/pitch_neon_intr.c
-	silk/arm/biquad_alt_neon_intr.c dnn/arm/nnet_neon.c"
+	silk/arm/biquad_alt_neon_intr.c silk/arm/LPC_inv_pred_gain_neon_intr.c
+	silk/arm/NSQ_del_dec_neon_intr.c silk/arm/NSQ_neon.c
+	dnn/arm/nnet_neon.c"
 for p in $sources $arch; do
 	mkdir -p "$dst/$(dirname "$p")"
 	cp "$work/src/$p" "$dst/$p"
+done
+
+# This list and the #includes in simd_*.c / dnn_*.c are the same set written
+# twice, and only the arch whose CI leg is running ever compiles its half — a
+# file missing here is a build failure on one platform and invisible on the
+# other three. Checked rather than trusted.
+for p in $(grep -ho 'opus-'"$VERSION"'/[A-Za-z0-9_/]*\.c' "$root"/simd_*.c "$root"/dnn_*.c |
+	sed "s|^opus-$VERSION/||" | sort -u); do
+	[ -f "$dst/$p" ] || { echo "simd/dnn shim includes $p, which was not vendored"; exit 1; }
 done
 
 cp "$work/src/weights_blob.bin" "$root/opus_data.bin"
