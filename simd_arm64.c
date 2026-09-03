@@ -14,9 +14,9 @@
    arm_silk_map.c is not here: it is the runtime dispatch table, and its whole
    body is behind OPUS_HAVE_RTCD, which stays undefined. */
 
-#include "opus-1.5.2/celt/arm/celt_neon_intr.c"
-#include "opus-1.5.2/celt/arm/pitch_neon_intr.c"
-#include "opus-1.5.2/silk/arm/biquad_alt_neon_intr.c"
-#include "opus-1.5.2/silk/arm/LPC_inv_pred_gain_neon_intr.c"
-#include "opus-1.5.2/silk/arm/NSQ_del_dec_neon_intr.c"
-#include "opus-1.5.2/silk/arm/NSQ_neon.c"
+#include "opus-1.6.1/celt/arm/celt_neon_intr.c"
+#include "opus-1.6.1/celt/arm/pitch_neon_intr.c"
+#include "opus-1.6.1/silk/arm/biquad_alt_neon_intr.c"
+#include "opus-1.6.1/silk/arm/LPC_inv_pred_gain_neon_intr.c"
+#include "opus-1.6.1/silk/arm/NSQ_del_dec_neon_intr.c"
+#include "opus-1.6.1/silk/arm/NSQ_neon.c"

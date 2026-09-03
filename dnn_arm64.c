@@ -9,4 +9,4 @@
    compute_conv2d on OPUS_ARM_PRESUME_NEON, which is the ARM *assembly* switch
    and not this build's; they stay generic C. */
 
-#include "opus-1.5.2/dnn/arm/nnet_neon.c"
+#include "opus-1.6.1/dnn/arm/nnet_neon.c"

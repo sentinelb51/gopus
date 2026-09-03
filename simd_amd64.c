@@ -13,7 +13,8 @@
    straight to the symbols below — xcorr_kernel, celt_inner_prod,
    dual_inner_prod and comb_filter_const from pitch_sse.c, op_pvq_search from
    vq_sse2.c. Both files are guarded on !FIXED_POINT upstream, which this build
-   is. */
+   is. The SSE4.1 and AVX2 levels above them are absent on purpose; config.h
+   says why. */
 
-#include "opus-1.5.2/celt/x86/pitch_sse.c"
-#include "opus-1.5.2/celt/x86/vq_sse2.c"
+#include "opus-1.6.1/celt/x86/pitch_sse.c"
+#include "opus-1.6.1/celt/x86/vq_sse2.c"

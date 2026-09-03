@@ -73,6 +73,19 @@ package gopus
 //   return opus_decoder_ctl(decoder, OPUS_SET_COMPLEXITY(complexity));
 // }
 //
+// /* The bandwidth extension is libopus 1.6, and this path links whatever the
+//    system has. An older header has no CTL to call and no model behind it, so
+//    the request is refused here rather than by the library — which is the same
+//    answer a 1.6 built without --enable-osce gives. */
+// int gopus_setoscebwe(OpusDecoder *decoder, int enabled) {
+// #ifdef OPUS_SET_OSCE_BWE
+//   return opus_decoder_ctl(decoder, OPUS_SET_OSCE_BWE(enabled));
+// #else
+//   (void)decoder; (void)enabled;
+//   return OPUS_UNIMPLEMENTED;
+// #endif
+// }
+//
 // void gopus_decoder_resetstate(OpusDecoder *decoder) {
 //   opus_decoder_ctl(decoder, OPUS_RESET_STATE);
 // }
@@ -286,23 +299,41 @@ func (d *Decoder) DecodeIn(data []byte, frameSize int, pcm []int16, fec bool) (i
 // which is convincing for one frame and robotic by the third — and at DeepPLC or
 // above a neural model reconstructs it as speech in the talker's own voice.
 //
+// From 1.6 the same dial also buys OSCE, which is not about loss at all: LACE
+// and NoLACE are postfilters over *decoded* SILK, and what they undo is the
+// coarseness of a low bitrate.
+//
 // ComplexityOff is libopus's own default, so nothing changes for a caller that
-// never asks. Deep PLC has to be compiled in as well; on a build without it, or
-// on a system libopus older than 1.5, these are accepted and do nothing.
+// never asks. Each level also has to be compiled in; on a build without it, or
+// on an older system libopus, these are accepted and do nothing.
 const (
 	ComplexityOff     = 0
 	ComplexityDeepPLC = 5
+	ComplexityLACE    = 6
+	ComplexityNoLACE  = 7
 )
 
-// SetComplexity sets how much work the decoder may do, 0-10. The level that
-// matters is ComplexityDeepPLC, at and above which libopus conceals lost packets
-// with its neural model rather than by extrapolation.
+// SetComplexity sets how much work the decoder may do, 0-10, and is the one
+// dial every neural extension hangs off. It is per decoder and takes effect on
+// the next frame, so it can be moved mid-call.
 //
-// It is per decoder and takes effect on the next frame, so it can be moved
-// mid-call. The cost is paid only while concealing: a stream losing nothing
-// decodes at exactly the same price either way.
+// ComplexityDeepPLC is paid only while concealing: a stream losing nothing
+// decodes at the same price either way. ComplexityLACE and ComplexityNoLACE are
+// postfilters and so run on every good frame instead — about half again and
+// about three times a plain decode. The vendored build's doc comment carries the
+// measurements; what a system library costs is its own build's business.
 func (d *Decoder) SetComplexity(complexity int) error {
 	return getErr(C.gopus_setdecodercomplexity(d.cDecoder, C.int(complexity)))
+}
+
+// SetOSCEBWE turns on blind bandwidth extension, new in libopus 1.6: a model
+// invents the 8-16 kHz octave SILK never coded, so a wideband talker arrives
+// sounding fullband. It wants ComplexityDeepPLC or above as well as this.
+//
+// On this build it is whatever the system library supports, and a libopus older
+// than 1.6, or one built without OSCE, answers ErrUnimplemented.
+func (d *Decoder) SetOSCEBWE(enabled bool) error {
+	return getErr(C.gopus_setoscebwe(d.cDecoder, cbool(enabled)))
 }
 
 func (d *Decoder) ResetState() {
